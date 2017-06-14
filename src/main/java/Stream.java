@@ -21,8 +21,14 @@ public class Stream
         this.missedCount = new AtomicInteger(0);
     }
 
+    /**
+     * Gets the distance to a dinamic fault
+     * @return how many activations can be missed before the
+     * stream goes faulty. Negative if already in dynamic fault
+     */
     public int getDistance()
     {
+        //first count how many met requests we have
         int met = 0;
         for (int i = 0; i < k; i++)
             met += history[i];
@@ -31,6 +37,11 @@ public class Stream
         if (met < m)
             return met - m;
 
+        //walk back history array counting how many
+        //requests can we miss before going dynamic
+        //fault. Each met request we pass decreases the
+        //met-request-count, until we have m met requests
+        //in the history.
         int distance = 0;
         int pos = k - 1;
         while (met >= m)
@@ -44,23 +55,39 @@ public class Stream
         return distance;
     }
 
+    /**
+     * Adds a missed request to the history
+     * @return missed requests count
+     */
     public int addMissedRequest()
     {
         addRequestToHistory(0);
         return missedCount.incrementAndGet();
     }
 
+    /**
+     * Adds a met request to the history
+     * @return met request count
+     */
     public int addMetRequest()
     {
         addRequestToHistory(1);
         return metCount.incrementAndGet();
     }
 
+    /**
+     * Gets the met requests count
+     * @return met requests count
+     */
     public int getMetCount()
     {
         return metCount.get();
     }
 
+    /**
+     * Gets the missed requests count
+     * @return missed requests count
+     */
     public int getMissedCount()
     {
         return missedCount.get();
