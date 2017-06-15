@@ -7,18 +7,29 @@ public class Stream
 {
     private int m;
     private int k;
+    private int c;
     private int[] history;
 
-    private AtomicInteger metCount;
-    private AtomicInteger missedCount;
+    private int metCount;
+    private int missedCount;
+    private String name;
 
-    public Stream(int m, int k)
+    private int dynamicFaultsChances;
+
+    public Stream(int m, int k, int dynamicFaultsChances)
     {
+        this(String.format("(%d,%d)", m, k), m, k, dynamicFaultsChances);
+    }
+
+    public Stream(String name, int m, int k, int dynamicFaultsChances)
+    {
+        this.name = name;
         this.m = m;
         this.k = k;
         this.history = new int[k];
-        this.metCount = new AtomicInteger(0);
-        this.missedCount = new AtomicInteger(0);
+        this.dynamicFaultsChances = dynamicFaultsChances;
+        this.metCount = 0;
+        this.missedCount = 0;
     }
 
     /**
@@ -26,7 +37,7 @@ public class Stream
      * @return how many activations can be missed before the
      * stream goes faulty. Negative if already in dynamic fault
      */
-    public int getDistance()
+    public synchronized int getDistance()
     {
         //first count how many met requests we have
         int met = 0;
@@ -59,20 +70,30 @@ public class Stream
      * Adds a missed request to the history
      * @return missed requests count
      */
-    public int addMissedRequest()
+    public synchronized int addMissedRequest()
     {
         addRequestToHistory(0);
-        return missedCount.incrementAndGet();
+        ++missedCount;
+        if (isInDynamicFault())
+            ++c;
+        return missedCount;
+    }
+
+    private boolean isInDynamicFault()
+    {
+        return getDistance() < 0;
     }
 
     /**
      * Adds a met request to the history
      * @return met request count
      */
-    public int addMetRequest()
+    public synchronized int addMetRequest()
     {
         addRequestToHistory(1);
-        return metCount.incrementAndGet();
+        if (!isInDynamicFault())
+            c = 0;
+        return ++metCount;
     }
 
     /**
@@ -81,7 +102,7 @@ public class Stream
      */
     public int getMetCount()
     {
-        return metCount.get();
+        return metCount;
     }
 
     /**
@@ -90,7 +111,30 @@ public class Stream
      */
     public int getMissedCount()
     {
-        return missedCount.get();
+        return missedCount;
+    }
+
+    /**
+     * Each time the stream enters in dynamic fault, each new fault is counted in this variable.
+     * Once the dynamic fault condition ceases, the counter is reset to zero.
+     * The maximum allowed value for this counter is getDynamicFaultsChances().
+     */
+    public int getChancesUsed() {
+        return c;
+    }
+    public int getDynamicFaultsChances()
+    {
+        return dynamicFaultsChances;
+    }
+
+    public synchronized boolean isBlacklisted()
+    {
+        return getChancesUsed() >= getDynamicFaultsChances();
+    }
+
+    public synchronized void setDynamicFaultsChances(int dynamicFaultsChances)
+    {
+        this.dynamicFaultsChances = dynamicFaultsChances;
     }
 
     private void addRequestToHistory(int status)
@@ -98,5 +142,23 @@ public class Stream
         for (int i = (k-2); i >= 0; i--)
             history[i+1] = history[i];
         history[0] = status;
+    }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name);
+        sb.append(",d:");
+        sb.append(getDistance());
+        sb.append("[");
+        for (int i = 0; i < history.length; i++)
+        {
+            sb.append(history[i]);
+            sb.append(",");
+        }
+        sb.replace(sb.length()-1, sb.length(), "]");
+
+        return sb.toString();
     }
 }

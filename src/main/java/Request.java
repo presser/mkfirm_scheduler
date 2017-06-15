@@ -5,5 +5,4 @@ public interface Request
 {
     long getDeadline();
     Stream getStream();
-    void run();
 }

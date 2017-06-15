@@ -5,11 +5,13 @@ public class DummyRequest implements Request
 {
     private Stream stream;
     private long deadline;
+    private String name;
 
-    public DummyRequest(Stream stream, long remainingDeadline)
+    public DummyRequest(String name, Stream stream, long deadline)
     {
+        this.name = name;
         this.stream = stream;
-        this.deadline = System.currentTimeMillis() + remainingDeadline;
+        this.deadline = deadline;
     }
 
     @Override
@@ -25,8 +27,8 @@ public class DummyRequest implements Request
     }
 
     @Override
-    public void run()
+    public String toString()
     {
-
+        return name + "(" + stream.toString() + ")";
     }
 }

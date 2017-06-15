@@ -8,7 +8,7 @@ public class StreamTest
 {
     @Test
     public void shouldCalculateDistance23() {
-        Stream stream = new Stream(2, 3);
+        Stream stream = new Stream(2, 3, 2+3);
 
         //[0,0,0]
         assertEquals(-2, stream.getDistance());
@@ -48,7 +48,7 @@ public class StreamTest
 
     @Test
     public void shouldCalculateDistance36() {
-        Stream stream = new Stream(3, 6);
+        Stream stream = new Stream(3, 6, 3+6);
 
         //[0,0,0,0,0,0]
         assertEquals(-3, stream.getDistance());
