@@ -1,6 +1,5 @@
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import sun.misc.ConditionLock;
 
 import javax.naming.InterruptedNamingException;
 import java.util.ArrayList;
