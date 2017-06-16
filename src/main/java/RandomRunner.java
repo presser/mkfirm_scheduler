@@ -4,13 +4,14 @@ import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
 
 import java.io.*;
-
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Runs a set of random requests
  */
+@SuppressWarnings("unchecked")
 public class RandomRunner
 {
     private String configFileName;
@@ -26,6 +27,9 @@ public class RandomRunner
 
     private Clock clock;
     private DBPScheduler scheduler;
+    private int iterSpec, iterSpecCount, iter, iterCount;
+
+    private SortedMap<String, String> iterPathValues;
 
     public RandomRunner(String configFileName, String resultsFileName)
     {
@@ -33,50 +37,6 @@ public class RandomRunner
         this.resultsFileName = resultsFileName;
         this.clock = new CurrentTimeMillisClock();
         this.scheduler = new DBPScheduler(clock);
-    }
-
-    private void loadConfig() throws IOException
-    {
-        YamlReader yaml = new YamlReader(new FileReader(configFileName));
-        Map config = (Map) yaml.read();
-
-        consoleOutputInterval = Integer.valueOf((String)config.get("consoleOutputInterval"));
-
-        streams = new ArrayList<>();
-        List streamList = (List)config.get("streams");
-        for (int i = 0; i < streamList.size(); i++)
-        {
-            Map streamConfig = (Map)streamList.get(i);
-            streams.add(new Stream(Integer.valueOf((String)streamConfig.get("m")),
-                    Integer.valueOf((String)streamConfig.get("k")),
-                    Integer.valueOf((String)streamConfig.get("dynamicFaultChances"))));
-        }
-
-        producers = new ArrayList<>();
-        List prodList = (List)config.get("producers");
-        for (int i = 0; i < prodList.size(); i++)
-        {
-            Map prodConfig = (Map)prodList.get(i);
-            RandomIntervalGenerator interval = new RandomIntervalGenerator(
-                    Integer.valueOf((String)prodConfig.get("intervalBetweenRequestsMin")),
-                    Integer.valueOf((String)prodConfig.get("intervalBetweenRequestsMax")));
-            RandomIntervalGenerator deadline = new RandomIntervalGenerator(
-                    Integer.valueOf((String)prodConfig.get("deadlineMin")),
-                    Integer.valueOf((String)prodConfig.get("deadlineMax")));
-            producers.add(new RandomRequestProducer(scheduler, streams,
-                    Integer.valueOf((String)prodConfig.get("streamIndex")),
-                    Integer.valueOf((String)prodConfig.get("numOfRequests")),
-                    interval, deadline));
-        }
-
-        processors = new ArrayList<>();
-        List procList = (List)config.get("processors");
-        for (int i = 0; i < procList.size(); i++)
-        {
-            Map procConfig = (Map)procList.get(i);
-            processors.add(new RandomRequestProcessor(scheduler, clock,
-                    Double.valueOf((String)procConfig.get("percentOfRequestsToMiss"))));
-        }
     }
 
     public static void main(String[] args) throws IOException, InterruptedException
@@ -92,14 +52,200 @@ public class RandomRunner
         runner.run();
     }
 
+    private Map loadConfig() throws IOException
+    {
+        YamlReader yaml = new YamlReader(new FileReader(configFileName));
+        return (Map) yaml.read();
+    }
+
+    private List getIterationSpecs(Map config)
+    {
+        return (List) config.getOrDefault("iterations", null);
+    }
+
+    private int getIterationCount(Map config, int iterationSpec)
+    {
+        String value = (String) ((Map) getIterationSpecs(config).get(iterationSpec)).get("count");
+        return Integer.parseInt(value);
+    }
+
+    private synchronized void applyConfig(Map cfg, Map iterSpec, int iter)
+    {
+        consoleOutputInterval = Integer.valueOf((String) cfg.get("consoleOutputInterval"));
+
+        streams = new ArrayList<>();
+        List streamList = (List) cfg.get("streams");
+        for (int i = 0; i < streamList.size(); i++)
+        {
+            streams.add(new Stream(readInt(cfg, iterSpec, iter, "streams", i, "m"),
+                    readInt(cfg, iterSpec, iter, "streams", i, "k"),
+                    readInt(cfg, iterSpec, iter, "streams", i, "dynamicFaultChances")));
+        }
+
+        producers = new ArrayList<>();
+        List prodList = (List) cfg.get("producers");
+        for (int i = 0; i < prodList.size(); i++)
+        {
+            RandomIntervalGenerator interval = new RandomIntervalGenerator(
+                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMin"),
+                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMax"));
+            RandomIntervalGenerator deadline = new RandomIntervalGenerator(
+                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMin"),
+                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMax"));
+            producers.add(new RandomRequestProducer(scheduler, streams,
+                    readInt(cfg, iterSpec, iter, "producers", i, "streamIndex"),
+                    readInt(cfg, iterSpec, iter, "producers", i, "numOfRequests"),
+                    interval, deadline));
+        }
+
+        processors = new ArrayList<>();
+        List procList = (List) cfg.get("processors");
+        for (int i = 0; i < procList.size(); i++)
+        {
+            processors.add(new RandomRequestProcessor(scheduler, clock,
+                    readDouble(cfg, iterSpec, iter, "processors", i, "percentOfRequestsToMiss")));
+        }
+
+        updateIterPathsValues(cfg, iterSpec, iter);
+    }
+
+    private void updateIterPathsValues(Map cfg, Map iterSpec, int iter)
+    {
+        for (String iterPath : iterPathValues.keySet())
+        {
+            String[] strings = iterPath.split("/");
+            Object pathArray[] = new Object[strings.length];
+            for (int i = 0; i < strings.length; i++)
+            {
+                if (Pattern.matches("\\d+", strings[i]))
+                    pathArray[i] = Integer.parseInt(strings[i]);
+                else
+                    pathArray[i] = strings[i];
+            }
+            iterPathValues.put(iterPath, String.valueOf(readDouble(cfg, iterSpec, iter, pathArray)));
+        }
+    }
+
+    private void initIterPaths(List<Map> specs)
+    {
+        iterPathValues = new TreeMap<>();
+        specs.forEach(s -> initIterPathsVisit(s, ""));
+        iterPathValues.remove("count"); //configuration, not iterable
+    }
+
+    private void initIterPathsVisit(Object node, String path)
+    {
+        if (node instanceof Map)
+        {
+            for (Object k : ((Map)node).keySet())
+                initIterPathsVisit(((Map)node).get(k), path + "/" + k.toString());
+        }
+        else if (node instanceof List)
+        {
+            for (int i = 0; i < ((List) node).size(); i++)
+                initIterPathsVisit(((List) node).get(i), path + "/" + i);
+        } else
+        {
+            if (path.startsWith("/"))
+                path = path.substring(1, path.length());
+            iterPathValues.put(path, "<<UNKNOWN>>");
+        }
+    }
+
+    private Object readPath(Map config, Object... path)
+    {
+        Object node = config;
+        for (Object element : path)
+        {
+            if (node == null)
+                throw new NoSuchElementException("Met null node while traversing " + pathToString(path));
+            if (element instanceof Integer)
+            {
+                List list = (List) node;
+                if (list.size() <= (Integer) element)
+                    throw new NoSuchElementException("No value for " + pathToString(path));
+                node = list.get((Integer) element);
+            } else if (element instanceof String)
+            {
+                if (!((Map) node).containsKey(element))
+                    throw new NoSuchElementException("No value for " + pathToString(path));
+                node = ((Map) node).get(element);
+            }
+        }
+        return node;
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private Object readPathOrElse(Map config, Object orElse, Object... path)
+    {
+        try
+        {
+            return readPath(config, path);
+        } catch (NoSuchElementException e)
+        {
+            return orElse;
+        }
+    }
+
+    private String pathToString(Object... path)
+    {
+        StringBuilder b = new StringBuilder();
+        for (Object e : path)
+            b.append("/").append(e.toString());
+        return b.toString();
+    }
+
+    private int readInt(Map config, Map spec, int iteration, Object... path)
+    {
+        String value = (String) readPath(config, path);
+        int step = Integer.parseInt((String) readPathOrElse(spec, "0", path));
+        return Integer.parseInt(value) + iteration * step;
+    }
+
+    private double readDouble(Map config, Map spec, int iteration, Object... path)
+    {
+        String value = (String) readPath(config, path);
+        double step = Double.parseDouble((String) readPathOrElse(spec, "0", path));
+        return Double.parseDouble(value) + iteration * step;
+    }
+
     private void run() throws IOException
     {
-        loadConfig();
+        Timer consoleTimer = null;
 
+        Map config = loadConfig();
+        List<Map> specs = new ArrayList<>();
+        specs.add(null);
+        ((List) config.getOrDefault("iterations", Collections.emptyList())).forEach(o -> specs.add((Map) o));
+        iterSpecCount = specs.size()-1;
+        initIterPaths(specs.subList(1, specs.size()));
+        initResult();
+        for (int i = 0; i < specs.size(); i++)
+        {
+            iterSpec = i;
+            int count = specs.get(i) == null ? 1 : Integer.parseInt((String) specs.get(i).get("count"));
+            iterCount = count;
+            /* All iteration specs share the 0-th iteration that is done under the hard-coded 0-th spec */
+            for (int j = 1; j <= count; j++)
+            {
+                iter = j;
+                applyConfig(config, specs.get(i), j);
+                // only start consoleTimer after first aplyConfig()
+                if (consoleTimer == null) consoleTimer = startConsoleTimer();
+                runIteration();
+            }
+        }
+
+        assert consoleTimer != null;
+        consoleTimer.cancel();
+        terminal.exitPrivateMode();
+        terminal.close();
+    }
+
+    private void runIteration() throws IOException
+    {
         processors.forEach(proc -> proc.start());
         producers.forEach(prod -> prod.start());
-
-        Timer consoleTimer = startConsoleTimer();
 
         producers.forEach(producer ->
         {
@@ -122,10 +268,7 @@ public class RandomRunner
                 e.printStackTrace();
             }
         });
-        consoleTimer.cancel();
         saveResults();
-        terminal.exitPrivateMode();
-        terminal.close();
     }
 
     private Timer startConsoleTimer() throws IOException
@@ -149,7 +292,7 @@ public class RandomRunner
         return timer;
     }
 
-    private void updateConsole()
+    private synchronized void updateConsole()
     {
         try
         {
@@ -159,8 +302,11 @@ public class RandomRunner
             e.printStackTrace();
         }
 
-        terminalText.putString(0, 0, "Streams:");
-        int line = 1;
+        int line = 0;
+        terminalText.putString(0, line++, String.format("Iter. spec: %d/%d  Iter. count: %d/%d",
+                iterSpec, iterSpecCount, iter, iterCount));
+        terminalText.putString(0, line++, "Streams:");
+
         for (int i = 0; i < streams.size(); i++)
             terminalText.putString(2, line++, String.format("%d: %s", i, streams.get(i)));
 
@@ -174,6 +320,11 @@ public class RandomRunner
         for (int i = 0; i < processors.size(); i++)
             terminalText.putString(2, line++, String.format("%d: %s", i, processors.get(i)));
 
+        line++;
+        terminalText.putString(0, line++, "Iterated Values:");
+        for (Map.Entry<String, String> e : iterPathValues.entrySet())
+            terminalText.putString(0, line++, e.getKey() + ": " + e.getValue());
+
         try
         {
             terminal.flush();
@@ -183,22 +334,32 @@ public class RandomRunner
         }
     }
 
-    private void saveResults() throws IOException
-    {
-        File f = new File(resultsFileName);
-        if (f.exists())
-            f.delete();
-
-
+    private void initResult() throws IOException {
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(resultsFileName))))
         {
-            writer.write("stream;total_requests;missed;met;is_blacklisted;dynamic_fault_count\r\n");
+            writer.write("stream;total_requests;missed;met;is_blacklisted;dynamic_fault_count;iter_spec;iter");
+            for (String key : iterPathValues.keySet())
+                writer.write(";" + key);
+            writer.write("\r\n");
+        }
+
+    }
+
+    private void saveResults() throws IOException
+    {
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(resultsFileName, true))))
+        {
             for (Stream stream : streams)
             {
-                writer.write(String.format("\"%s\";%d;%d;%d;%s;%d\r\n", stream.getName(), stream.getMetCount() +
-                    stream.getMissedCount(), stream.getMissedCount(), stream.getMetCount(),
-                    (stream.isBlacklisted() ? "yes" : "no"), stream.getDynamicFaultCount()));
+                writer.write(String.format("\"%s\";%d;%d;%d;%s;%d;%d;%d", stream.getName(), stream.getMetCount() +
+                                stream.getMissedCount(), stream.getMissedCount(), stream.getMetCount(),
+                        (stream.isBlacklisted() ? "yes" : "no"), stream.getDynamicFaultCount(),
+                        iterSpec, iter));
+                for (String key : iterPathValues.keySet())
+                    writer.write(";" + iterPathValues.get(key));
+                writer.write("\r\n");
             }
         }
     }

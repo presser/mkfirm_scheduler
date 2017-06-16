@@ -34,8 +34,8 @@ public class RandomRequestProcessor extends Thread
         misses = 0;
         while (true)
         {
-            currentRequest = null;
             waiting = true;
+            currentRequest = null;
             try
             {
                 currentRequest = scheduler.getNextRequestToExecute();
@@ -90,7 +90,8 @@ public class RandomRequestProcessor extends Thread
     @Override
     public String toString()
     {
+        Request currentRequest = this.currentRequest;
         return String.format("Processed: %d, missed: %d (%s)", processed, misses,
-                (waiting ? "waiting" : "executing " + currentRequest.getStream().getName()));
+                (currentRequest == null ? "waiting" : "executing " + currentRequest.getStream().getName()));
     }
 }

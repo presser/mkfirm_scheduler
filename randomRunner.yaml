@@ -22,3 +22,8 @@ producers: #list of request producers to be created
 processors: #list of request processors to be created
   - percentOfRequestsToMiss: 5 #the percent of requests to miss during execution
   - percentOfRequestsToMiss: 5
+iterations:
+  - count: 2
+    streams:
+    - m: 0
+    - m: 1
