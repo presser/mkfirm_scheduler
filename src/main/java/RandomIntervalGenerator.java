@@ -1,3 +1,5 @@
+import com.google.common.base.Preconditions;
+
 import java.util.Random;
 
 /**
@@ -11,6 +13,7 @@ public class RandomIntervalGenerator
 
     public RandomIntervalGenerator(int min, int max)
     {
+        Preconditions.checkArgument(min <= max);
         this.min = min;
         this.max = max;
         this.random = new Random();
@@ -18,6 +21,6 @@ public class RandomIntervalGenerator
 
     public int nextInterval()
     {
-        return min + random.nextInt(max - min);
+        return min == max ? min : min + random.nextInt(max - min);
     }
 }
