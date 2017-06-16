@@ -133,7 +133,7 @@ public class DBPSchedulerTest
     }
 
     @Test
-    public void testDynamicFailurePenalty() throws InterruptedException
+    public void shouldBlacklistPersistentDynamicFailure() throws InterruptedException
     {
         Stream streamA = new Stream(2, 3, 2);
         Stream streamB = new Stream(1, 3, 2);
