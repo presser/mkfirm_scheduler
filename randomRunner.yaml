@@ -8,15 +8,17 @@ streams: #list of streams to be created
     dynamicFaultChances: 4 #how many activations in dynamic fault before dropping the stream (usually m + k)
 producers: #list of request producers to be created
   - numOfRequests: 20 #number of requests to be produced during the execution
+    streamIndex: 0 #0-based index of the strem under which requests will be issued (if missing or -1 choose randomly)
     intervalBetweenRequestsMin: 1000 #interval between request production (actual value will be random between
     intervalBetweenRequestsMax: 2000 #min and max). In milliseconds.
     deadlineMin: 2500 #deadline of produced requests (actual value will be randomly generated between min and
     deadlineMax: 3000 #max). In milliseconds.
   - numOfRequests: 20
+    streamIndex: 1
     intervalBetweenRequestsMin: 1000
     intervalBetweenRequestsMax: 2000
     deadlineMin: 2500
     deadlineMax: 3000
 processors: #list of request processors to be created
-  - percendOfRequestsToMiss: 5 #the percent of requests to miss during execution
-  - percendOfRequestsToMiss: 5
+  - percentOfRequestsToMiss: 5 #the percent of requests to miss during execution
+  - percentOfRequestsToMiss: 5

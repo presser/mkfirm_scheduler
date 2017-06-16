@@ -15,17 +15,20 @@ public class RandomRequestProducer extends Thread
     private DBPScheduler scheduler;
     private List<Stream> streams;
     private int numOfRequests;
+    private int streamIndex;
     private RandomIntervalGenerator intervalGenerator;
     private RandomIntervalGenerator deadlineGenerator;
     private Random random;
     private int produced;
 
-    public RandomRequestProducer(DBPScheduler scheduler, List<Stream> streams, int numOfRequests,
+    public RandomRequestProducer(DBPScheduler scheduler, List<Stream> streams,
+                                 int streamIndex, int numOfRequests,
                                  RandomIntervalGenerator intervalGenerator,
                                  RandomIntervalGenerator deadlineGenerator)
     {
         this.scheduler = scheduler;
         this.streams = streams;
+        this.streamIndex = streamIndex;
         this.intervalGenerator = intervalGenerator;
         this.deadlineGenerator = deadlineGenerator;
         this.numOfRequests = numOfRequests;
@@ -60,7 +63,8 @@ public class RandomRequestProducer extends Thread
 
     private Request produceRequest()
     {
-        Stream stream = streams.get(random.nextInt(streams.size()));
+        Stream stream = streamIndex >= 0 ? streams.get(streamIndex)
+                : streams.get(random.nextInt(streams.size()));
         long deadline = scheduler.getClock().getTick() + deadlineGenerator.nextInterval();
         DummyRequest request = new DummyRequest("Dummy", stream, deadline);
         return request;

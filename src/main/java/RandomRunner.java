@@ -64,6 +64,7 @@ public class RandomRunner
                     Integer.valueOf((String)prodConfig.get("deadlineMin")),
                     Integer.valueOf((String)prodConfig.get("deadlineMax")));
             producers.add(new RandomRequestProducer(scheduler, streams,
+                    Integer.valueOf((String)prodConfig.get("streamIndex")),
                     Integer.valueOf((String)prodConfig.get("numOfRequests")),
                     interval, deadline));
         }
@@ -74,7 +75,7 @@ public class RandomRunner
         {
             Map procConfig = (Map)procList.get(i);
             processors.add(new RandomRequestProcessor(scheduler, clock,
-                    Double.valueOf((String)procConfig.get("percendOfRequestsToMiss"))));
+                    Double.valueOf((String)procConfig.get("percentOfRequestsToMiss"))));
         }
     }
 
