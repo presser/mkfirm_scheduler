@@ -1,5 +1,6 @@
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import sun.misc.ConditionLock;
 
 import javax.naming.InterruptedNamingException;
 import java.util.ArrayList;
@@ -21,6 +22,11 @@ public class DBPScheduler
         requests = new ArrayList<>(100);
         needsReorder = false;
         this.clock = clock;
+    }
+
+    public Clock getClock()
+    {
+        return clock;
     }
 
     /**
@@ -48,16 +54,20 @@ public class DBPScheduler
      */
     public synchronized Request getNextRequestToExecute() throws InterruptedException
     {
-        if (requests.size() == 0)
-            wait();
-
-        needsReorder |= removeMissedRequests();
-
-        if (needsReorder)
+        do
         {
-            reorderRequests();
-            needsReorder = false;
-        }
+            if (requests.size() == 0)
+                wait();
+
+            needsReorder |= removeMissedRequests();
+
+            if (needsReorder)
+            {
+                reorderRequests();
+                needsReorder = false;
+            }
+
+        } while (requests.size() == 0);
 
         Request result = requests.get(0);
         requests.remove(0);

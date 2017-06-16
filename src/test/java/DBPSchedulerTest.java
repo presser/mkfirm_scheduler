@@ -8,7 +8,7 @@ import static org.junit.Assert.*;
 public class DBPSchedulerTest
 {
     @Test
-    public void shouldOrderMetRequestsOneAtATime() throws InterruptedException
+    public void shouldOrderMetRequestsOneAtATimeWithNoMisses() throws InterruptedException
     {
         Stream streamA = new Stream(2, 3, 2+3);
         Stream streamB = new Stream(1, 3, 3+1);
@@ -74,7 +74,7 @@ public class DBPSchedulerTest
     }
 
     @Test
-    public void shouldOrderRequestsByDeadlline() throws InterruptedException
+    public void shouldOrderRequestsOneAtAtimeWithMisses() throws InterruptedException
     {
         Stream streamA = new Stream(2, 3, 2+3);
         Stream streamB = new Stream(1, 3, 3+1);
@@ -197,8 +197,7 @@ public class DBPSchedulerTest
 
         assertTrue(scheduler.isEmpty());
 
-
-        Request reqB4 = new DummyRequest("reqB3", streamB, 140);
+        Request reqB4 = new DummyRequest("reqB4", streamB, 140);
         boolean caught = false;
         try  {
             scheduler.addRequest(reqB4);

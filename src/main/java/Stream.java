@@ -15,10 +15,11 @@ public class Stream
     private String name;
 
     private int dynamicFaultsChances;
+    private int dynamicFaultCount;
 
     public Stream(int m, int k, int dynamicFaultsChances)
     {
-        this(String.format("(%d,%d)", m, k), m, k, dynamicFaultsChances);
+        this(String.format("[%d,%d]", m, k), m, k, dynamicFaultsChances);
     }
 
     public Stream(String name, int m, int k, int dynamicFaultsChances)
@@ -30,6 +31,7 @@ public class Stream
         this.dynamicFaultsChances = dynamicFaultsChances;
         this.metCount = 0;
         this.missedCount = 0;
+        this.dynamicFaultCount = 0;
     }
 
     /**
@@ -75,7 +77,10 @@ public class Stream
         addRequestToHistory(0);
         ++missedCount;
         if (isInDynamicFault())
+        {
             ++c;
+            ++dynamicFaultCount;
+        }
         return missedCount;
     }
 
@@ -158,7 +163,25 @@ public class Stream
             sb.append(",");
         }
         sb.replace(sb.length()-1, sb.length(), "]");
+        sb.append("missed:");
+        sb.append(missedCount);
+        sb.append(",met:");
+        sb.append(metCount);
 
         return sb.toString();
+    }
+
+    public String getName()
+    {
+        return name;
+    }
+
+    /**
+     * Gets the number of activations this stream has had in dynamic fault
+     * @return
+     */
+    public int getDynamicFaultCount()
+    {
+        return dynamicFaultCount;
     }
 }

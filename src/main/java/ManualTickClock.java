@@ -1,5 +1,5 @@
 /**
- * A clock that manually ticked
+ * A clock that is manually ticked
  */
 public class ManualTickClock implements Clock
 {

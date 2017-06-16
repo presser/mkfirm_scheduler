@@ -2,7 +2,8 @@ import java.util.Comparator;
 
 /**
  * A comparator for DBP Requests, used to order requests according to
- * a (m,k)-firm stream of requests model
+ * a (m,k)-firm stream of requests model. First orders by distance to
+ * dynamic fault, then by deadline
  */
 public class DBPRequestComparator implements Comparator<Request>
 {

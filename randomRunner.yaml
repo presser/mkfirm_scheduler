@@ -1,0 +1,22 @@
+consoleOutputInterval: 250 #interval to update console info
+streams: #list of streams to be created
+  - m: 2
+    k: 3
+    dynamicFaultChances: 5 #how many activations in dynamic fault before dropping the stream (usually m + k)
+  - m: 1
+    k: 3
+    dynamicFaultChances: 4 #how many activations in dynamic fault before dropping the stream (usually m + k)
+producers: #list of request producers to be created
+  - numOfRequests: 20 #number of requests to be produced during the execution
+    intervalBetweenRequestsMin: 1000 #interval between request production (actual value will be random between
+    intervalBetweenRequestsMax: 2000 #min and max). In milliseconds.
+    deadlineMin: 2500 #deadline of produced requests (actual value will be randomly generated between min and
+    deadlineMax: 3000 #max). In milliseconds.
+  - numOfRequests: 20
+    intervalBetweenRequestsMin: 1000
+    intervalBetweenRequestsMax: 2000
+    deadlineMin: 2500
+    deadlineMax: 3000
+processors: #list of request processors to be created
+  - percendOfRequestsToMiss: 5 #the percent of requests to miss during execution
+  - percendOfRequestsToMiss: 5
