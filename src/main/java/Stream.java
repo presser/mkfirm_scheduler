@@ -19,12 +19,12 @@ public class Stream
 
     public Stream(int m, int k, int dynamicFaultsChances)
     {
-        this(String.format("[%d,%d]", m, k), m, k, dynamicFaultsChances);
+        this(null, m, k, dynamicFaultsChances);
     }
 
     public Stream(String name, int m, int k, int dynamicFaultsChances)
     {
-        this.name = name;
+        this.name = name != null ? name : String.format("[%d,%d]", m, k);
         this.m = m;
         this.k = k;
         this.history = new int[k];

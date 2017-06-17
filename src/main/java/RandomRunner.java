@@ -43,10 +43,10 @@ public class RandomRunner
     {
         String configFileName = "randomRunner.yaml";
         String resultsFileName = "results.csv";
-        if (args.length > 1)
-            configFileName = args[1];
-        if (args.length > 2)
-            resultsFileName = args[2];
+        if (args.length >= 1)
+            configFileName = args[0];
+        if (args.length >= 2)
+            resultsFileName = args[1];
 
         RandomRunner runner = new RandomRunner(configFileName, resultsFileName);
         runner.run();
@@ -69,6 +69,7 @@ public class RandomRunner
         return Integer.parseInt(value);
     }
 
+    @SuppressWarnings("ConstantConditions") // we want NoSuchElementException to be thrown
     private synchronized void applyConfig(Map cfg, Map iterSpec, int iter)
     {
         consoleOutputInterval = Integer.valueOf((String) cfg.get("consoleOutputInterval"));
@@ -77,9 +78,10 @@ public class RandomRunner
         List streamList = (List) cfg.get("streams");
         for (int i = 0; i < streamList.size(); i++)
         {
-            streams.add(new Stream(readInt(cfg, iterSpec, iter, "streams", i, "m"),
-                    readInt(cfg, iterSpec, iter, "streams", i, "k"),
-                    readInt(cfg, iterSpec, iter, "streams", i, "dynamicFaultChances")));
+            String name = (String)readPath(cfg, "streams", i, "name").orElse(null);
+            streams.add(new Stream(name, readInt(cfg, iterSpec, iter, "streams", i, "m").get(),
+                    readInt(cfg, iterSpec, iter, "streams", i, "k").get(),
+                    readInt(cfg, iterSpec, iter, "streams", i, "dynamicFaultChances").get()));
         }
 
         producers = new ArrayList<>();
@@ -87,14 +89,14 @@ public class RandomRunner
         for (int i = 0; i < prodList.size(); i++)
         {
             RandomIntervalGenerator interval = new RandomIntervalGenerator(
-                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMin"),
-                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMax"));
+                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMin").get(),
+                    readInt(cfg, iterSpec, iter, "producers", i, "intervalBetweenRequestsMax").get());
             RandomIntervalGenerator deadline = new RandomIntervalGenerator(
-                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMin"),
-                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMax"));
+                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMin").get(),
+                    readInt(cfg, iterSpec, iter, "producers", i, "deadlineMax").get());
             producers.add(new RandomRequestProducer(scheduler, streams,
-                    readInt(cfg, iterSpec, iter, "producers", i, "streamIndex"),
-                    readInt(cfg, iterSpec, iter, "producers", i, "numOfRequests"),
+                    readInt(cfg, iterSpec, iter, "producers", i, "streamIndex").get(),
+                    readInt(cfg, iterSpec, iter, "producers", i, "numOfRequests").get(),
                     interval, deadline));
         }
 
@@ -102,8 +104,13 @@ public class RandomRunner
         List procList = (List) cfg.get("processors");
         for (int i = 0; i < procList.size(); i++)
         {
-            processors.add(new RandomRequestProcessor(scheduler, clock,
-                    readDouble(cfg, iterSpec, iter, "processors", i, "percentOfRequestsToMiss")));
+            RandomRequestProcessor p = new RandomRequestProcessor(scheduler, clock);
+            processors.add(p);
+            double value = readDouble(cfg, iterSpec, iter,
+                    "processors", i, "percentOfRequestsToMiss").orElse(-100.0)/100.0;
+            p.setPercentOfRequestsToMiss(value);
+            int iValue = readInt(cfg, iterSpec, iter, "processors", i, "fixedDelay").orElse(0);
+            p.setFixedProcessDelay(iValue);
         }
 
         updateIterPathsValues(cfg, iterSpec, iter);
@@ -122,7 +129,7 @@ public class RandomRunner
                 else
                     pathArray[i] = strings[i];
             }
-            iterPathValues.put(iterPath, String.valueOf(readDouble(cfg, iterSpec, iter, pathArray)));
+            readDouble(cfg, iterSpec, iter, pathArray).ifPresent(v -> iterPathValues.put(iterPath, String.valueOf(v)));
         }
     }
 
@@ -152,39 +159,32 @@ public class RandomRunner
         }
     }
 
-    private Object readPath(Map config, Object... path)
+    private Optional<Object> readPath(Map config, Object... path)
     {
         Object node = config;
         for (Object element : path)
         {
             if (node == null)
-                throw new NoSuchElementException("Met null node while traversing " + pathToString(path));
+                return Optional.empty();
             if (element instanceof Integer)
             {
                 List list = (List) node;
                 if (list.size() <= (Integer) element)
-                    throw new NoSuchElementException("No value for " + pathToString(path));
+                    return Optional.empty();
                 node = list.get((Integer) element);
             } else if (element instanceof String)
             {
                 if (!((Map) node).containsKey(element))
-                    throw new NoSuchElementException("No value for " + pathToString(path));
+                    return Optional.empty();
                 node = ((Map) node).get(element);
             }
         }
-        return node;
+        return Optional.of(node);
     }
 
-    @SuppressWarnings("SameParameterValue")
-    private Object readPathOrElse(Map config, Object orElse, Object... path)
-    {
-        try
-        {
-            return readPath(config, path);
-        } catch (NoSuchElementException e)
-        {
-            return orElse;
-        }
+    private Object readRequiredPath(Map config, Object... path) {
+        return readPath(config, path)
+                .orElseThrow(() -> new NoSuchElementException("Path " + pathToString(path) + " not found"));
     }
 
     private String pathToString(Object... path)
@@ -195,18 +195,22 @@ public class RandomRunner
         return b.toString();
     }
 
-    private int readInt(Map config, Map spec, int iteration, Object... path)
+    private Optional<Integer> readInt(Map config, Map spec, int iteration, Object... path)
     {
-        String value = (String) readPath(config, path);
-        int step = Integer.parseInt((String) readPathOrElse(spec, "0", path));
-        return Integer.parseInt(value) + iteration * step;
+        Optional<Object> opt = readPath(config, path);
+        if (!opt.isPresent()) return Optional.empty();
+        String value = (String) opt.get();
+        int step = Integer.parseInt((String) readPath(spec, path).orElse("0"));
+        return Optional.of(Integer.parseInt(value) + iteration * step) ;
     }
 
-    private double readDouble(Map config, Map spec, int iteration, Object... path)
+    private Optional<Double> readDouble(Map config, Map spec, int iteration, Object... path)
     {
-        String value = (String) readPath(config, path);
-        double step = Double.parseDouble((String) readPathOrElse(spec, "0", path));
-        return Double.parseDouble(value) + iteration * step;
+        Optional<Object> opt = readPath(config, path);
+        if (!opt.isPresent()) return Optional.empty();
+        String value = (String) opt.get();
+        double step = Double.parseDouble((String) readPath(spec, path).orElse("0"));
+        return Optional.of(Double.parseDouble(value) + iteration * step);
     }
 
     private void run() throws IOException

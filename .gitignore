@@ -34,5 +34,8 @@ proguard/
 build/
 bin/
 
+#R
+.Rhistory
+
 #mkscheduler
 *.csv

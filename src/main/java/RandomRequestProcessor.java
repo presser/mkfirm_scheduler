@@ -1,3 +1,4 @@
+import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,18 +14,31 @@ public class RandomRequestProcessor extends Thread
     private DBPScheduler scheduler;
     private Clock clock;
     private double percentOfRequestsToMiss;
+    private long fixedProcessDelay;
     private Random random;
     private int processed;
     private int misses;
     private boolean waiting;
     private Request currentRequest;
 
-    public RandomRequestProcessor(DBPScheduler scheduler, Clock clock, double percentOfRequestsToMiss)
+    public RandomRequestProcessor(DBPScheduler scheduler, Clock clock)
     {
         this.scheduler = scheduler;
         this.random = new Random();
         this.clock = clock;
-        this.percentOfRequestsToMiss = percentOfRequestsToMiss / 100.0;
+        this.percentOfRequestsToMiss = -1;
+        this.fixedProcessDelay = 0;
+    }
+
+    public void setPercentOfRequestsToMiss(double percent)
+    {
+        Preconditions.checkArgument(percent < 1);
+        this.percentOfRequestsToMiss = percent;
+    }
+
+    public void setFixedProcessDelay(long fixedProcessDelay)
+    {
+        this.fixedProcessDelay = fixedProcessDelay;
     }
 
     @Override
@@ -74,17 +88,20 @@ public class RandomRequestProcessor extends Thread
             return;
         }
 
-        double shouldMiss = random.nextDouble();
-
-        long delay;
-        if (shouldMiss <= percentOfRequestsToMiss)
+        long delay = fixedProcessDelay;
+        if (percentOfRequestsToMiss >= 0)
         {
-            delay = remaining + (long) Math.floor((remaining / 2) * random.nextDouble());
-            misses += 1;
+            double shouldMiss = random.nextDouble();
+
+            if (shouldMiss <= percentOfRequestsToMiss)
+            {
+                delay = remaining + (long) Math.floor((remaining / 2) * random.nextDouble());
+                misses += 1;
+            } else
+                delay = (long) Math.floor(remaining * random.nextDouble());
         }
-        else
-            delay = (long)Math.floor(remaining * random.nextDouble());
         Thread.sleep(delay);
+
     }
 
     @Override

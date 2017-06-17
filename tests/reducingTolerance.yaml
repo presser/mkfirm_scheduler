@@ -1,0 +1,39 @@
+consoleOutputInterval: 250 
+streams:
+  - name: starve1
+    m: 2 # This stream will be always on failure as intervals are too short
+    k: 3
+    dynamicFaultChances: 10
+  - name: stream1
+    m: 1
+    k: 3
+    dynamicFaultChances: 10 # The intent is to disable
+  - name: stream2
+    m: 2
+    k: 3
+    dynamicFaultChances: 10 # The intent is to disable
+producers: 
+  - numOfRequests: 40
+    streamIndex: 0 
+    intervalBetweenRequestsMin: 100
+    intervalBetweenRequestsMax: 120
+    deadlineMin: 100 # deadline too short, guaranteed failure
+    deadlineMax: 120
+  - numOfRequests: 40
+    streamIndex: 1
+    intervalBetweenRequestsMin: 400
+    intervalBetweenRequestsMax: 400
+    deadlineMin: 400
+    deadlineMax: 400
+  - numOfRequests: 40
+    streamIndex: 2
+    intervalBetweenRequestsMin: 400
+    intervalBetweenRequestsMax: 400
+    deadlineMin: 400
+    deadlineMax: 400
+processors: 
+  - fixedDelay: 200
+iterations:
+  - count: 8
+    streams:
+    - dynamicFaultChances: -1 #reduce fault chances of stream 0
