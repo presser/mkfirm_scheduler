@@ -1,3 +1,4 @@
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,6 +29,7 @@ public class Stream
         this.m = m;
         this.k = k;
         this.history = new int[k];
+        Arrays.fill(this.history, 1);
         this.dynamicFaultsChances = dynamicFaultsChances;
         this.metCount = 0;
         this.missedCount = 0;
@@ -48,7 +50,7 @@ public class Stream
 
         //Returns negative if in dynamic fault
         if (met < m)
-            return met - m;
+            return met - history[history.length-1] - m;
 
         //walk back history array counting how many
         //requests can we miss before going dynamic
